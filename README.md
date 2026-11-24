@@ -9,7 +9,7 @@ Windows HID 底层开发，奥丁（Glorious）鼠标协议参考 korkje/mow 与
 
 | 浅色 | 深色 |
 | --- | --- |
-| ![电量岛浅色界面](docs/preview-light.png) | ![电量岛深色界面](docs/preview-dark.png) |
+| ![电量岛浅色界面](docs/screenshot-light.png) | ![电量岛深色界面](docs/screenshot-dark.png) |
 
 以上截图来自本机 Glorious Model O- Wireless 的真实读数。
 
@@ -76,7 +76,7 @@ Windows HID 底层开发，奥丁（Glorious）鼠标协议参考 korkje/mow 与
   点一下展开电量窗口，右键出菜单，滚轮立即刷新。
 - 两者都在设置里单独开关，默认开启。全屏应用在前台时浮标自动让位，不覆盖游戏画面。
 
-![任务栏里的常驻电量](docs/preview-tray.png)
+![任务栏里的常驻电量](docs/screenshot-tray.png)
 
 截图里绿色的 `40%` 就是浮标，位置紧贴 `^` 溢出图标左侧、与任务栏同高。
 
