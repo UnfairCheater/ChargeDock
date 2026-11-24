@@ -7,7 +7,11 @@
 Windows HID 底层开发，奥丁（Glorious）鼠标协议参考 korkje/mow 与 Wireless-Device-Battery-Monitor。
 代码来源、参考版本与许可证说明见 [ATTRIBUTION.md](ATTRIBUTION.md) 与 [LICENSING.md](LICENSING.md)。
 
-![电量岛浅色界面](docs/preview-light.png)
+| 浅色 | 深色 |
+| --- | --- |
+| ![电量岛浅色界面](docs/preview-light.png) | ![电量岛深色界面](docs/preview-dark.png) |
+
+以上截图来自本机 Glorious Model O- Wireless 的真实读数。
 
 ## 本分支说明
 
@@ -71,6 +75,10 @@ Windows HID 底层开发，奥丁（Glorious）鼠标协议参考 korkje/mow 与
 - 另有一个数字浮标贴在**任务栏条内部**、通知区域（时钟/托盘图标）左侧，随托盘图标增减自动跟随；
   点一下展开电量窗口，右键出菜单，滚轮立即刷新。
 - 两者都在设置里单独开关，默认开启。全屏应用在前台时浮标自动让位，不覆盖游戏画面。
+
+![任务栏里的常驻电量](docs/preview-tray.png)
+
+截图里绿色的 `40%` 就是浮标，位置紧贴 `^` 溢出图标左侧、与任务栏同高。
 
 ## 稳定性与数据
 
