@@ -1,5 +1,32 @@
 # 变更记录
 
+## v1.1.0 — 2026-11-24
+
+只留奥丁鼠标一条协议。
+
+### 移除
+
+- **ROG 协议**：删除 `rog_proto.py`（魔刃 X / 夜魔），鼠标不再有 ROG 回退路径
+- **赛睿耳机协议**：删除 `core.parse_headset()`、`core.read_headset()` 与基站查询
+- `core.MODELS` 从三类收敛为 `{"mouse": …}`，随之删掉 `DISPLAY_KEYS`、
+  `--poll-key` 的 `keyboard`/`headset` 选项、键盘的提醒设置行、`icons.PATHS` 里的
+  键盘与耳机图标
+- `wake_monitor` 只订阅鼠标（Usage 1/2），不再识别 ROG / 赛睿设备，`WakeGate` 去掉耳机轮询特例
+- 四语言文案 91 → 72 条（ROG 型号名、耳机状态与错误、键盘提醒、Armoury Crate 提示）
+- `ATTRIBUTION.md` 去掉 g-helper 与 HeadsetControl 两条协议参考，只保留 mow 与
+  Wireless-Device-Battery-Monitor
+
+### 变更
+
+- `core.read_mouse()` 并入 `core.read_device()`，只读 Glorious 协议
+- README 重写：只列 Glorious Model O / O- / D / D- 四款型号与两个 PID 组
+- `ADAPTATION.md` 重写为单设备结构；`PERFORMANCE.md`、`VALIDATION.md`、`GLORIOUS.md` 同步更新
+
+### 保持不变
+
+- 托盘数字图标、任务栏内浮标、低电量提醒、登录自启、四语言界面
+- 102 项测试全绿；无设备时不留空卡片
+
 ## v1.0.0 — 2026-11-24
 
 首个个人发布版，基于 [SgZincanya/ChargeDock](https://github.com/SgZincanya/ChargeDock) 的

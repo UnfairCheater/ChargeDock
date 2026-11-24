@@ -18,41 +18,31 @@ class WakeTests(unittest.TestCase):
 
     def test_offline_device_input_bypasses_idle_requirement(self):
         gate = WakeGate()
-        gate.observe("keyboard", now=0)
-        self.assertTrue(gate.observe("keyboard", missing=True, now=6))
-        self.assertFalse(gate.observe("keyboard", missing=True, now=6.1))
+        gate.observe("mouse", now=0)
+        self.assertTrue(gate.observe("mouse", missing=True, now=6))
+        self.assertFalse(gate.observe("mouse", missing=True, now=6.1))
 
-    def test_own_headset_replies_do_not_refresh_forever(self):
-        gate = WakeGate()
-        self.assertFalse(gate.observe("headset", missing=True, polling=True, now=0))
-        self.assertTrue(gate.observe("headset", missing=True, polling=False, now=6))
-
-    def test_only_our_devices_match(self):
-        self.assertEqual(device_kind(r"\\?\hid#VID_0B05&PID_1A1A", 0), "mouse")
-        self.assertEqual(device_kind(r"\\?\hid#VID_0B05&PID_1ACE", 1), "keyboard")
-        self.assertEqual(device_kind(r"\\?\hid#VID_1038&PID_12E0", 2), "headset")
-        self.assertIsNone(device_kind(r"\\?\hid#VID_0B05&PID_19AF", 2))
-        self.assertIsNone(device_kind(r"\\?\hid#VID_0B05&PID_1ACE", 0))
-
-    def test_glorious_receiver_activity_maps_to_mouse(self):
+    def test_only_glorious_mice_match(self):
         self.assertEqual(device_kind(r"\\?\hid#VID_258A&PID_2024&MI_00", 0), "mouse")
         self.assertEqual(device_kind(r"\\?\hid#VID_258A&PID_2013", 0), "mouse")
         self.assertIsNone(device_kind(r"\\?\hid#VID_258A&PID_2024&MI_01", 1))
         self.assertIsNone(device_kind(r"\\?\hid#VID_258A&PID_0112", 1))
+        # 已移除的 ROG / 赛睿设备不再被识别。
+        self.assertIsNone(device_kind(r"\\?\hid#VID_0B05&PID_1A1A", 0))
+        self.assertIsNone(device_kind(r"\\?\hid#VID_1038&PID_12E0", 2))
 
     def test_native_header_event_and_resume_reach_callback(self):
         api, app, callback = MagicMock(), MagicMock(), MagicMock()
         api.RegisterRawInputDevices.return_value = True
         with patch("wake_monitor.ctypes.WinDLL", return_value=api):
-            monitor = WakeMonitor(app, 123, callback,
-                lambda: {"keyboard": Reading("keyboard", "", "", None)}, lambda: False)
+            monitor = WakeMonitor(app, 123, callback, lambda: {"mouse": Reading("mouse", "", "", None)})
         def header_only(handle, command, output, size, header_size):
             self.assertEqual(command, 0x10000005)  # RID_HEADER, never RID_INPUT.
             header = ctypes.cast(output, ctypes.POINTER(RawInputHeader)).contents
             header.kind, header.device = 1, 456
             return ctypes.sizeof(RawInputHeader)
         api.GetRawInputData.side_effect = header_only
-        monitor.lookup = lambda handle, raw_type=None: "keyboard"
+        monitor.lookup = lambda handle, raw_type=None: "mouse"
         message = wintypes.MSG()
         message.message, message.lParam = 0xFF, 789
         self.assertEqual(monitor.nativeEventFilter(b"windows_generic_MSG", ctypes.addressof(message)), (False, 0))

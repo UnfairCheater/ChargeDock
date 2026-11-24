@@ -1,7 +1,7 @@
 # 奥丁（Glorious）无线鼠标电量适配说明
 
-本分支在 `电量岛 · ChargeDock` 上新增了 **Glorious / 奥丁 无线鼠标** 这一电量来源，鼠标卡片
-现在读的是 Glorious 供应商 HID 协议，ROG 协议保留为回退路径。
+本分支在 `电量岛 · ChargeDock` 上把电量来源换成 **Glorious / 奥丁 无线鼠标**：整个程序只读这一条
+供应商 HID 协议，ROG 与赛睿耳机的协议已从代码中删除。
 
 ## 实机验证结果
 
@@ -41,18 +41,17 @@
 
 ## 代码位置
 
-| 文件 | 改动 |
+| 文件 | 内容 |
 | --- | --- |
-| `glorious_proto.py` | 新增：协议实现、报文构造、回复解析、读取锁、重试 |
-| `core.py` | `MODELS["mouse"]` 改为奥丁；新增 `read_mouse()`（Glorious 优先、ROG 回退）；`DISPLAY_KEYS` 控制界面显示哪几类设备 |
-| `ui.py` | 鼠标副标题改成 `Model O- Wireless · 2.4G`；未接的设备卡片与提醒行改成隐藏 |
-| `locales/*.json` | 补 `奥丁 Model O-` 与三条新错误文案（中/日/英/韩） |
-| `glorious_probe.py` | 新增：本机诊断探针，打印接口能力表并 hexdump 一次真实查询 |
-| `test_glorious.py` | 新增：匹配、报文、解析、唤醒重试、回退分派的单元测试 |
+| `glorious_proto.py` | 协议实现：报文构造、回复解析、读取锁、唤醒重试 |
+| `core.py` | `MODELS`（只有 mouse）、`read_device()`、提醒策略、配置校验 |
+| `ui.py` | 鼠标卡片副标题、托盘数字图标、任务栏浮标、设置页开关 |
+| `locales/*.json` | 四语言文案（中文原文作 msgid） |
+| `glorious_probe.py` | 本机诊断探针：打印接口能力表并 hexdump 一次真实查询 |
+| `test_glorious.py` | 匹配、报文、解析、唤醒重试、缺失设备的单元测试 |
 
-`DISPLAY_KEYS = ("mouse",)` 是这台机器的取舍：键盘、耳机保留完整代码路径（读取、提醒、退避、
-测试都还在），只是不显示成一直“未连接”的空卡片。接上 ROG 键盘后把它改成
-`("mouse", "keyboard")` 即可。
+设备只有一类（`core.MODELS == {"mouse": …}`），删掉 ROG/耳机后不再需要“显示哪几类设备”的
+开关，卡片是否出现在只看 `Reading.present`。
 
 ## 本地使用
 
@@ -104,14 +103,13 @@ py -3.11 -m venv .venv
 
 ## 设备没插的时候
 
-`Reading.present` 是这一版新增的字段：只有真的匹配到接收器/USB 接口才是 `True`。
+`Reading.present` 只有真的匹配到接收器/USB 接口才是 `True`。
 
-- `glorious_proto.read_device()` 和 `rog_proto.read_device()` 在一个匹配接口都没有时返回 `None`
-  （以前 ROG 那边会返回一个带 "ROG 魔刃 X" 字样的占位读数，于是在没插接收器时界面显示成 ROG 鼠标）。
-- `core.read_mouse()` 两级都 `None` 时给出 `present=False`，标题仍是「奥丁 Model O-」，
-  不会借用另一家的型号名。
+- `glorious_proto.read_device()` 在一个匹配接口都没有时返回 `None`，不再编造占位读数
+  （上游曾用 ROG 的占位读数，于是没插接收器时界面显示成 ROG 鼠标）。
+- `core.read_device()` 拿到 `None` 时给出 `present=False`，标题仍是「奥丁 Model O-」。
 - 界面只显示 `present` 为真的卡片；一个都没有时只留一行“未检测到设备 · 插入接收器后会自动出现”，
-  托盘图标回到应用图标，右下角浮标隐藏。
+  托盘图标回到应用图标，任务栏浮标隐藏。
 - 枚举 HID 失败这类“不知道插没插”的异常仍然按 `present=True` 处理，卡片保留并显示错误，
   避免界面闪一下消失。
 

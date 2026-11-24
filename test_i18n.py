@@ -23,7 +23,7 @@ class TranslationTests(unittest.TestCase):
 
     def test_four_catalogues_have_the_same_keys_and_placeholders(self):
         source = i18n.catalogue("zh-CN")
-        self.assertGreaterEqual(len(source), 85)
+        self.assertGreaterEqual(len(source), 70)
         fields = lambda text: {field for _, field, _, _ in string.Formatter().parse(text) if field}
         for code in ("zh-CN", "ja-JP", "en-US", "ko-KR"):
             catalogue = i18n.catalogue(code)
@@ -95,19 +95,17 @@ class LanguageUiTests(unittest.TestCase):
             self.assertEqual(load_config(self.controller.config_path)["language"], code)
             self.assertEqual(len(self.controller.findChildren(QSystemTrayIcon)), 1)
 
-    def test_language_switch_preserves_readings_and_does_not_alert_or_poll(self):
-        self.controller.receive([Reading("mouse", "魔刃 X", "", 74, present=True),
-            Reading("keyboard", "夜魔", "", 50, present=True),
-            Reading("headset", "赛睿耳机", "", 75, approximate=True, present=True)], "")
+    def test_language_switch_preserves_reading_and_does_not_alert_or_poll(self):
+        self.controller.receive([Reading("mouse", "奥丁 Model O-", "", 74, present=True)], "")
         with patch.object(self.controller.tray, "showMessage") as alert, \
              patch.object(self.controller.poller, "start") as poll:
             self.controller.setting("language", "en-US")
             alert.assert_not_called(); poll.assert_not_called()
-        self.assertEqual(self.panel.cards["headset"].percentage.text(), "~ 75%")
+        self.assertEqual(self.panel.cards["mouse"].percentage.text(), "74%")
         self.assertEqual(self.panel.cards["mouse"].state_text.text(), "Connected")
-        self.assertEqual(self.panel.cards["headset"].title.text(), "Headset")
+        self.assertEqual(self.panel.cards["mouse"].title.text(), "Glorious Model O-")
         self.assertEqual(self.panel.language_choice.currentData(), "en-US")
-        self.assertIn("Chakram X: 74%", self.controller.tray.toolTip())
+        self.assertIn("Glorious Model O-: 74%", self.controller.tray.toolTip())
 
     def test_runtime_errors_are_retranslated(self):
         self.panel.settings_status.setText("设备返回无效电量")

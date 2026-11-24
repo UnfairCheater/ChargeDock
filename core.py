@@ -1,4 +1,7 @@
-"""ChargeDock domain logic; no UI and no network access."""
+"""ChargeDock domain logic; no UI and no network access.
+
+本仓库只支持一种设备：奥丁（Glorious）无线鼠标。ROG 与赛睿耳机的协议已移除。
+"""
 from __future__ import annotations
 
 import json
@@ -22,15 +25,7 @@ class Reading:
     present: bool = False
 
 
-MODELS = {
-    "mouse": ("奥丁 Model O-", "GLORIOUS MODEL O- WIRELESS"),
-    "keyboard": ("夜魔", "ROG AZOTH"),
-    "headset": ("赛睿耳机", "ARCTIS NOVA PRO WIRELESS"),
-}
-
-# 本机只接了 Glorious 鼠标。其余类别保留完整的读取、提醒和测试路径，
-# 但不在卡片、设置项和托盘提示里显示，避免出现一直"未连接"的空行。
-DISPLAY_KEYS = ("mouse",)
+MODELS = {"mouse": ("奥丁 Model O-", "GLORIOUS MODEL O- WIRELESS")}
 
 
 def atomic_json(path: Path, value) -> None:
@@ -43,8 +38,7 @@ def atomic_json(path: Path, value) -> None:
 def defaults() -> dict:
     return {"interval": 60, "dismiss_seconds": 12, "sound": False, "language": "system",
             "tray_percent": True, "badge": True,
-            "alerts": {"mouse": {"enabled": True, "threshold": 20},
-                       "keyboard": {"enabled": True, "threshold": 20}}}
+            "alerts": {"mouse": {"enabled": True, "threshold": 20}}}
 
 
 def validate_config(value) -> dict:
@@ -63,14 +57,12 @@ def validate_config(value) -> dict:
     result["tray_percent"] = value.get("tray_percent", True) is True
     result["badge"] = value.get("badge", True) is True
     alerts = value.get("alerts", {})
-    for key in ("mouse", "keyboard"):
-        item = alerts.get(key, {}) if isinstance(alerts, dict) else {}
-        if not isinstance(item, dict):
-            continue
-        result["alerts"][key]["enabled"] = item.get("enabled", True) is True
+    item = alerts.get("mouse", {}) if isinstance(alerts, dict) else {}
+    if isinstance(item, dict):
+        result["alerts"]["mouse"]["enabled"] = item.get("enabled", True) is True
         threshold = item.get("threshold", 20)
         if type(threshold) is int:
-            result["alerts"][key]["threshold"] = max(1, min(99, threshold))
+            result["alerts"]["mouse"]["threshold"] = max(1, min(99, threshold))
     return result
 
 
@@ -91,7 +83,7 @@ class AlertPolicy:
         now = time.time() if now is None else now
         notifications = []
         for reading in readings:
-            if reading.key not in ("mouse", "keyboard"):
+            if reading.key not in MODELS:
                 continue
             item = config["alerts"][reading.key]
             if not item["enabled"]:
@@ -111,77 +103,22 @@ class AlertPolicy:
         return notifications
 
 
-def parse_headset(data: bytes) -> tuple[int | None, bool, str]:
-    # Independently implemented from HeadsetControl's Nova Pro Wireless protocol.
-    # https://github.com/Sapd/HeadsetControl/blob/master/lib/devices/steelseries_arctis_nova_pro_wireless.hpp
-    if len(data) < 16 or data[:2] != b"\x06\xb0":
-        return None, False, "非电量回复"
-    state, code = data[15], data[6]
-    if state == 1:
-        return None, False, "耳机未开机或超出连接范围"
-    if state not in (2, 8) or code > 8:
-        return None, False, "耳机返回了无法识别的状态"
-    return int(code * 100 / 8 + 0.5), state == 2, ""
-
-
-def read_headset(interfaces=None) -> Reading:
-    import hid_win as hw
-    result = Reading("headset", *MODELS["headset"], approximate=True)
-    for iface in hw.enumerate_hid() if interfaces is None else interfaces:
-        if not (iface.vid == 0x1038 and iface.pid in (0x12E0, 0x12E5)
-                and iface.usage_page == 0xFFC0 and iface.usage == 1
-                and iface.output_len == 64 and iface.input_len == 64):
-            continue
-        result.present = True
-        try:
-            with hw.HidDevice(iface.path, write=True) as device:
-                if not device.write_access:
-                    result.error = "电量接口被占用，请稍后重试"
-                    return result
-                device.drain()
-                device.write_output(b"\x06\xb0".ljust(64, b"\0"), use_hidd=False)
-                deadline = time.monotonic() + 0.8
-                while time.monotonic() < deadline:
-                    data = device.read_input(timeout_ms=120)
-                    if not data or data[:2] != b"\x06\xb0":
-                        continue
-                    result.level, result.charging, result.error = parse_headset(data)
-                    result.updated = time.time()
-                    return result
-            result.error = "耳机未回复，请检查基站连接"
-        except OSError as exc:
-            result.error = f"耳机读取失败：{exc}"
-        return result
-    result.error = "未找到耳机基站"
-    return result
-
-
-def read_mouse(interfaces=None) -> Reading:
-    """鼠标类别先试 Glorious 协议；没有对应的接收器时退回 ROG 协议。
-
-    两个协议都找不到接口时，返回的读数 present=False，界面据此不显示鼠标卡片，
-    也不会借用另一家的型号名。
-    """
+def read_device(interfaces=None) -> Reading:
+    """读鼠标电量。没有匹配的接收器/USB 接口时 present=False，界面据此不显示卡片。"""
     import glorious_proto
-    import rog_proto
     import hid_win as hw
     interfaces = hw.enumerate_hid() if interfaces is None else interfaces
-    glorious = glorious_proto.read_device(interfaces)
-    if glorious is not None:
-        return Reading("mouse", glorious.title or MODELS["mouse"][0], MODELS["mouse"][1],
-                       glorious.level, glorious.charging, present=True,
-                       error=glorious.error, updated=time.time())
-    legacy = rog_proto.read_device("mouse", interfaces)
-    if legacy is not None:
-        return Reading("mouse", legacy.title or MODELS["mouse"][0], "ROG CHAKRAM X",
-                       legacy.level, legacy.charging, present=True,
-                       error=legacy.error, updated=time.time())
-    return Reading("mouse", *MODELS["mouse"], error="未找到奥丁接收器或 USB 连接",
-                   updated=time.time())
+    value = glorious_proto.read_device(interfaces)
+    if value is None:
+        return Reading("mouse", *MODELS["mouse"], error="未找到奥丁接收器或 USB 连接",
+                       updated=time.time())
+    return Reading("mouse", value.title or MODELS["mouse"][0], MODELS["mouse"][1],
+                   value.level, value.charging, present=True,
+                   error=value.error, updated=time.time())
 
 
 def read_all(keys=None) -> list[Reading]:
-    import rog_proto
+    """读取所有（当前只有一只鼠标）设备。接口枚举失败时不改动卡片显隐，只报错。"""
     import hid_win as hw
     keys = list(MODELS) if keys is None else list(keys)
     if any(key not in MODELS for key in keys) or len(set(keys)) != len(keys):
@@ -191,25 +128,11 @@ def read_all(keys=None) -> list[Reading]:
     try:
         interfaces = hw.enumerate_hid()
     except Exception as exc:
-        # 枚举失败时无法判断设备在不在，卡片保留并把错误显示出来，避免界面闪一下消失。
         return [Reading(key, *MODELS[key], error=f"暂时无法读取：{exc}", present=True) for key in keys]
-    result = []
-    for key in keys:
-        try:
-            if key == "headset":
-                reading = read_headset(interfaces)
-            elif key == "mouse":
-                reading = read_mouse(interfaces)
-            else:
-                value = rog_proto.read_device(key, interfaces)
-                reading = (Reading(key, *MODELS[key], error="未找到对应的接收器或 USB 连接",
-                                   updated=time.time()) if value is None else
-                           Reading(key, *MODELS[key], value.level, value.charging, present=True,
-                                   error=value.error, updated=time.time()))
-        except Exception as exc:
-            reading = Reading(key, *MODELS[key], error=f"暂时无法读取：{exc}", present=True)
-        result.append(reading)
-    return result
+    try:
+        return [read_device(interfaces)]
+    except Exception as exc:
+        return [Reading(key, *MODELS[key], error=f"暂时无法读取：{exc}", present=True) for key in keys]
 
 
 def poll_to_file(path: Path, key=None) -> int:

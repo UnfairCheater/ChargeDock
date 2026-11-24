@@ -24,7 +24,7 @@ The base commit does not include a LICENSE file. No replacement license is
 granted here for upstream code. Git history and source attribution are retained.
 
 Protocol references (Python implementations in this project):
-G-Helper: https://github.com/seerge/g-helper (upstream GPL-3.0)
-HeadsetControl: https://github.com/Sapd/HeadsetControl (upstream GPL-3.0)
+mow: https://github.com/korkje/mow
+Wireless-Device-Battery-Monitor: https://github.com/krisgfx9/Wireless-Device-Battery-Monitor (upstream GPL-3.0)
 See ATTRIBUTION.md for specific files, reference snapshots and contributions.
 See LICENSING.md for the scope of this repository's licensing declarations.

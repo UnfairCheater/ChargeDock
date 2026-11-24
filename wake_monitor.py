@@ -14,13 +14,10 @@ class WakeGate:
         self.idle_seconds, self.cooldown = idle_seconds, cooldown
         self.activity, self.triggered = {}, {}
 
-    def observe(self, key, missing=False, polling=False, now=None):
+    def observe(self, key, missing=False, now=None):
         now = time.monotonic() if now is None else now
         previous = self.activity.get(key)
         self.activity[key] = now
-        # Vendor responses to our own headset query must not cause a loop.
-        if key == "headset" and polling:
-            return False
         idle = previous is None or now - previous >= self.idle_seconds
         if (idle or missing) and now - self.triggered.get(key, -1e10) >= self.cooldown:
             self.triggered[key] = now
@@ -29,23 +26,18 @@ class WakeGate:
 
 
 def device_kind(path, raw_type=None):
+    """只认奥丁（Glorious）鼠标：接收器和直连都会以鼠标集合上报活动。
+
+    只用于判断"刚刚被唤醒"，不读取任何按键内容。
+    """
     match = re.search(r"vid_([0-9a-f]{4})&pid_([0-9a-f]{4})", path.lower())
     if not match:
         return None
     vid, pid = (int(value, 16) for value in match.groups())
-    if vid == 0x1038 and pid in (0x12E0, 0x12E5):
-        return "headset"
-    # 奥丁（Glorious）鼠标：接收器和直连都会以鼠标集合上报活动，
-    # 只用于判断“刚刚被唤醒”，不读取任何按键内容。
-    if vid == 0x258A and pid in (0x2011, 0x2012, 0x2013, 0x2014,
-                                 0x2022, 0x2023, 0x2024, 0x2025) and raw_type in (None, 0):
+    if (vid == 0x258A and pid in (0x2011, 0x2012, 0x2013, 0x2014,
+                                  0x2022, 0x2023, 0x2024, 0x2025)
+            and raw_type in (None, 0)):
         return "mouse"
-    if vid != 0x0B05:
-        return None
-    if pid in (0x1A1A, 0x1A18) and raw_type in (None, 0):
-        return "mouse"
-    if pid in (0x1ACE, 0x1A83, 0x1A85) and raw_type in (None, 1):
-        return "keyboard"
     return None
 
 
@@ -60,12 +52,13 @@ class RawInputHeader(ctypes.Structure):
 
 
 class WakeMonitor(QAbstractNativeEventFilter):
-    USAGES = ((1, 2), (1, 6), (0xFFC0, 1))
+    # 只订阅鼠标（Usage Page 1 / Usage 2）的活动通知。
+    USAGES = ((1, 2),)
 
-    def __init__(self, app, hwnd, callback, readings, polling):
+    def __init__(self, app, hwnd, callback, readings):
         super().__init__()
         self.app, self.callback = app, callback
-        self.readings, self.polling = readings, polling
+        self.readings = readings
         self.gate = WakeGate()
         self.devices = {}
         self.registration_ok = False
@@ -112,7 +105,7 @@ class WakeMonitor(QAbstractNativeEventFilter):
                 if key:
                     current = self.readings().get(key)
                     missing = current is None or current.level is None
-                    if self.gate.observe(key, missing, self.polling()):
+                    if self.gate.observe(key, missing):
                         self.callback(key)
             elif msg.message == 0xFE:  # WM_INPUT_DEVICE_CHANGE
                 key = self.lookup(msg.lParam)

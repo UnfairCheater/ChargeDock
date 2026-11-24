@@ -13,7 +13,7 @@ from i18n import tr, set_language, translate_message
 
 set_language("ja-JP")
 text = tr("已连接")
-message = tr("{device}剩余 {level}%", device="Chakram X", level=18)
+message = tr("{device}剩余 {level}%", device="Model O-", level=18)
 ```
 
 JSON 文件中的中文原文是稳定的消息标识（msgid），值为对应翻译。修改中文原文时，需要同步四个语言文件和调用位置。`translate_message()` 用于后端中文状态/错误的展示转换；协议解析和休眠判断仍依据原始状态，不依赖译文。

@@ -6,7 +6,6 @@ from unittest.mock import patch
 import core
 import glorious_proto as gp
 import hid_win as hw
-import rog_proto
 
 
 def reply(status=0xA1, level=57, charging=0, command=0x83):
@@ -144,44 +143,31 @@ class ReadTests(unittest.TestCase):
 
 
 class CoreDispatchTests(unittest.TestCase):
-    def test_mouse_slot_uses_glorious_protocol_first(self):
+    def test_reading_uses_glorious_protocol(self):
         with patch("glorious_proto.read_device",
                    return_value=gp.GloriousReading("奥丁 Model O-", 63, False)):
-            reading = core.read_mouse([])
+            reading = core.read_device([])
         self.assertEqual((reading.key, reading.level, reading.title), ("mouse", 63, "奥丁 Model O-"))
+        self.assertTrue(reading.present)
 
-    def test_mouse_slot_falls_back_to_rog_protocol(self):
-        with patch("glorious_proto.read_device", return_value=None), \
-                patch.object(rog_proto, "read_device",
-                             return_value=rog_proto.RogReading("ROG 魔刃 X", 71, False)):
-            reading = core.read_mouse([])
-        self.assertEqual((reading.level, reading.title), (71, "ROG 魔刃 X"))
-
-    def test_glorious_error_is_kept_without_falling_back(self):
+    def test_device_error_is_kept(self):
         with patch("glorious_proto.read_device",
-                   return_value=gp.GloriousReading("奥丁 Model O-", error="鼠标休眠或未连接")), \
-                patch.object(rog_proto, "read_device") as legacy:
-            reading = core.read_mouse([])
-        legacy.assert_not_called()
+                   return_value=gp.GloriousReading("奥丁 Model O-", error="鼠标休眠或未连接")):
+            reading = core.read_device([])
         self.assertIsNone(reading.level)
         self.assertIn("休眠", reading.error)
+        self.assertTrue(reading.present)
 
-    def test_missing_receiver_reports_absent_without_borrowing_rog_name(self):
-        with patch("glorious_proto.read_device", return_value=None), \
-                patch.object(rog_proto, "read_device", return_value=None):
-            reading = core.read_mouse([])
+    def test_missing_receiver_reports_absent(self):
+        with patch("glorious_proto.read_device", return_value=None):
+            reading = core.read_device([])
         self.assertFalse(reading.present)
         self.assertEqual(reading.title, "奥丁 Model O-")
-        self.assertNotIn("ROG", reading.title)
         self.assertIn("未找到", reading.error)
 
-    def test_rog_fallback_is_marked_present(self):
-        with patch("glorious_proto.read_device", return_value=None), \
-                patch.object(rog_proto, "read_device",
-                             return_value=rog_proto.RogReading("ROG 魔刃 X", 71, False)):
-            reading = core.read_mouse([])
-        self.assertTrue(reading.present)
-        self.assertEqual(reading.title, "ROG 魔刃 X")
+    def test_rog_protocol_is_gone(self):
+        with self.assertRaises(ModuleNotFoundError):
+            __import__("rog_proto")
 
 
 if __name__ == "__main__":

@@ -14,7 +14,7 @@ def arguments():
     parser.add_argument("--quit", action="store_true")
     parser.add_argument("--once", action="store_true")
     parser.add_argument("--poll-output", type=Path)
-    parser.add_argument("--poll-key", choices=("mouse", "keyboard", "headset"), action="append")
+    parser.add_argument("--poll-key", choices=("mouse",), action="append")
     parser.add_argument("--data-dir", type=Path)
     parser.add_argument("--result", type=Path)
     parser.add_argument("--snapshot", type=Path)

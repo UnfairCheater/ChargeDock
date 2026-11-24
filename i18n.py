@@ -64,7 +64,7 @@ def translate_message(source):
     translated = tr(source)
     if translated != source or source in catalogue(_language):
         return translated
-    for prefix in ("上次更新 ", "约 ", "读取失败：", "耳机读取失败：", "暂时无法读取：", "未更改成功："):
+    for prefix in ("上次更新 ", "约 ", "读取失败：", "暂时无法读取：", "未更改成功："):
         if source.startswith(prefix):
             return tr(prefix) + translate_message(source[len(prefix):])
     return source

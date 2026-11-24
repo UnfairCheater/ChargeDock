@@ -20,7 +20,7 @@ from PySide6.QtWidgets import (QAbstractSpinBox, QApplication, QCheckBox, QCombo
     QScrollArea, QSizePolicy, QSpinBox, QStackedWidget, QSystemTrayIcon, QVBoxLayout, QWidget)
 
 import startup
-from core import (AlertPolicy, DISPLAY_KEYS, MODELS, Reading, atomic_json,
+from core import (AlertPolicy, MODELS, Reading, atomic_json,
                   load_config, read_all, read_poll_file, user_data_dir)
 from icons import ROOT, app_icon, level_icon, readable_text, symbol
 from i18n import LANGUAGES, set_language, tr, translate_message
@@ -177,8 +177,7 @@ class MenuChoice(QPushButton):
 
 
 class DeviceCard(QFrame):
-    SUBTITLES = {"mouse": "Model O- Wireless · 2.4G", "keyboard": "AZOTH · OMNI",
-                 "headset": "Nova Pro Wireless · 2.4G"}
+    SUBTITLES = {"mouse": "Model O- Wireless · 2.4G"}
 
     def __init__(self, key):
         super().__init__()
@@ -227,7 +226,7 @@ class DeviceCard(QFrame):
         c = self.colors
         self.glyph.setPixmap(symbol(self.key, c["text"], 29).pixmap(QSize(29, 29)))
         level = reading.level
-        low = (self.key in ("mouse", "keyboard") and level is not None
+        low = (self.key in MODELS and level is not None
                and config["alerts"][self.key]["enabled"]
                and level <= config["alerts"][self.key]["threshold"] and not reading.charging)
         color = c["danger"] if low else c["accent"]
@@ -242,8 +241,7 @@ class DeviceCard(QFrame):
                  "正在读取" if not reading.error else "等待唤醒" if waiting else "未连接")
         self.state_text.setText(state)
         self.state_text.setStyleSheet(f"color:{color if low else c['muted']};")
-        self.setToolTip(translate_message(reading.error) if reading.error else tr(
-            "耳机按 0–8 档换算，显示近似电量；耳机不发送低电量提醒。") if reading.approximate else "")
+        self.setToolTip(translate_message(reading.error) if reading.error else "")
         self.setAccessibleName(f"{tr(reading.title)} {self.percentage.text()} {tr(state)}")
 
 
@@ -560,8 +558,8 @@ class Panel(QWidget):
             card = DeviceCard(key)
             self.cards[key] = card
             main.addWidget(card)
-            # 卡片照样建好（提醒、语言切换等逻辑不变），只是本机没接的设备不显示。
-            card.setVisible(key in DISPLAY_KEYS)
+            # 先隐藏，等确认真的插着接收器再显示（present 由读子进程给出）。
+            card.setVisible(False)
         self.empty_notice = label("正在读取设备…", "caption")
         self.empty_notice.setWordWrap(True)
         self.empty_notice.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -625,7 +623,7 @@ class Panel(QWidget):
         alarm_layout = QVBoxLayout(alarm_box)
         alarm_layout.setContentsMargins(13, 8, 13, 8)
         self.thresholds, self.switches = {}, {}
-        for key, title in (("mouse", "鼠标"), ("keyboard", "键盘")):
+        for key, title in (("mouse", "鼠标"),):
             row_box = QWidget()
             row = QHBoxLayout(row_box)
             row.setContentsMargins(0, 0, 0, 0)
@@ -654,9 +652,8 @@ class Panel(QWidget):
             switch.toggled.connect(lambda value, k=key: self.controller.alert_setting(k, "enabled", value))
             self.thresholds[key], self.switches[key] = spin, switch
             alarm_layout.addWidget(row_box)
-            row_box.setVisible(key in DISPLAY_KEYS)
         layout.addWidget(alarm_box)
-        hint = label("每轮低电量只提醒一次。耳机仅显示电量。", "caption")
+        hint = label("每轮低电量只提醒一次。", "caption")
         hint.setWordWrap(True)
         layout.addWidget(hint)
         for title, name, choices in (
@@ -904,7 +901,7 @@ class Controller(QObject):
         if not args.snapshot:
             from wake_monitor import WakeMonitor
             self.wake_monitor = WakeMonitor(app, int(self.panel.winId()), self.request_wake_refresh,
-                                            lambda: self.readings, lambda: self.poller.active)
+                                            lambda: self.readings)
             self.tray.show()
             QTimer.singleShot(0, self.refresh)
         if not args.background and not args.snapshot and not args.smoke_test:
@@ -1023,8 +1020,7 @@ class Controller(QObject):
         self.last_error = error
         for key, card in self.panel.cards.items():
             card.render(self.readings[key], self.config, key in self.stale_keys)
-        present = [key for key in DISPLAY_KEYS
-                   if key in self.readings and self.readings[key].present]
+        present = [key for key in MODELS if self.readings[key].present]
         for key, card in self.panel.cards.items():
             card.setVisible(key in present)
         self.panel.show_empty_state(present, self.last_updated)
@@ -1036,15 +1032,13 @@ class Controller(QObject):
         tooltip = [tr("电量岛 · ChargeDock")]
         low = False
         for r in self.readings.values():
-            if r.key not in DISPLAY_KEYS:
-                continue
             tooltip.append(f"{tr(r.title)}: " + ((tr("约 ") if r.approximate else "") + f"{r.level}%" if r.level is not None else tr("未连接")))
-            if r.key in ("mouse", "keyboard") and r.level is not None:
+            if r.key in MODELS and r.level is not None:
                 item = self.config["alerts"][r.key]
                 low |= item["enabled"] and r.level <= item["threshold"] and not r.charging
         self.tray.setToolTip("\n".join(tooltip))
         colors = self.panel.colors
-        primary = self.readings[DISPLAY_KEYS[0]] if DISPLAY_KEYS else None
+        primary = self.readings.get("mouse")
         if primary is not None and not primary.present:
             primary = None   # 没插接收器：托盘回到应用图标，浮标隐藏，不留一个空读数
         if primary is not None and self.config.get("tray_percent", True):

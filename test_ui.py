@@ -74,21 +74,19 @@ class UiTests(unittest.TestCase):
         self.assertFalse(any(image.pixelColor(x, y).name() == self.panel.colors["blue"]
                              for x in range(image.width()) for y in range(image.height())))
 
-    def test_readings_reach_three_cards(self):
-        self.controller.receive([Reading("mouse", "鼠标", "", 78, present=True),
-                                 Reading("keyboard", "键盘", "", 50, present=True),
-                                 Reading("headset", "耳机", "", 88, approximate=True, present=True)], "")
+    def test_reading_reaches_the_card(self):
+        self.controller.receive([Reading("mouse", "鼠标", "", 78, present=True)], "")
         self.assertEqual(self.panel.cards["mouse"].percentage.text(), "78%")
-        self.assertEqual(self.panel.cards["headset"].percentage.text(), "约 88%")
-        self.assertNotIn("headset", self.panel.thresholds)
+        self.assertTrue(self.panel.cards["mouse"].isVisibleTo(self.panel))
 
     def test_threshold_and_switch_are_persisted(self):
         self.panel.thresholds["mouse"].setValue(35)
-        self.panel.switches["keyboard"].setChecked(False)
+        self.panel.switches["mouse"].setChecked(False)
         saved = load_config(self.controller.config_path)
         self.assertEqual(saved["alerts"]["mouse"]["threshold"], 35)
-        self.assertFalse(saved["alerts"]["keyboard"]["enabled"])
-        self.assertFalse(self.panel.thresholds["keyboard"].isEnabled())
+        self.assertFalse(saved["alerts"]["mouse"]["enabled"])
+        self.assertFalse(self.panel.thresholds["mouse"].isEnabled())
+        self.assertEqual(list(self.panel.thresholds), ["mouse"])
 
     def test_threshold_editor_has_room_for_visible_text(self):
         self.panel.show_settings()
@@ -183,47 +181,33 @@ class UiTests(unittest.TestCase):
             self.controller.refresh_after_wake()
             refresh.assert_called_once()
 
-    def test_headset_only_result_keeps_mouse_and_keyboard(self):
-        self.controller.readings["mouse"].level = 78
-        self.controller.readings["keyboard"].level = 50
-        self.controller.receive([Reading("headset", "耳机", "", 75, approximate=True, present=True)], "")
-        self.assertEqual(self.controller.readings["mouse"].level, 78)
-        self.assertEqual(self.controller.readings["keyboard"].level, 50)
-        self.assertEqual(self.controller.readings["headset"].level, 75)
-
     def test_periodic_read_skips_device_in_backoff(self):
         schedule = self.controller.retry_schedule
         schedule.clock = lambda: 10
-        schedule.deadlines.update(mouse=0, keyboard=0, headset=300)
+        schedule.deadlines.update(mouse=300)
         with patch.object(self.controller.poller, "start", return_value=True) as start:
             self.controller.refresh_due()
-            start.assert_called_once_with(["mouse", "keyboard"])
+            start.assert_not_called()
 
     def test_manual_refresh_bypasses_backoff(self):
         schedule = self.controller.retry_schedule
         schedule.record([], list(self.controller.readings), 60)
         with patch.object(self.controller.poller, "start", return_value=True) as start:
             self.controller.refresh()
-            start.assert_called_once_with(["mouse", "keyboard", "headset"])
-        self.assertEqual(schedule.failures["headset"], 0)
+            start.assert_called_once_with(["mouse"])
+        self.assertEqual(schedule.failures["mouse"], 0)
 
-    def test_mouse_wake_preserves_headset_backoff(self):
-        schedule = self.controller.retry_schedule
-        schedule.record([], ["headset"], 60)
-        deadline = schedule.deadlines["headset"]
+    def test_wake_refresh_only_asks_for_the_mouse(self):
         self.controller.request_wake_refresh("mouse")
         with patch.object(self.controller.poller, "start", return_value=True) as start:
             self.controller.refresh_after_wake()
             start.assert_called_once_with(["mouse"])
-        self.assertEqual(schedule.deadlines["headset"], deadline)
 
-    def test_partial_recovery_clears_only_its_stale_marker(self):
+    def test_partial_recovery_clears_its_stale_marker(self):
         self.controller.receive([], "timeout")
+        self.assertEqual(self.panel.cards["mouse"].state_text.text(), "上次读取")
         self.controller.receive([Reading("mouse", "鼠标", "", 74, present=True)], "")
         self.assertEqual(self.panel.cards["mouse"].state_text.text(), "已连接")
-        self.assertEqual(self.panel.cards["keyboard"].state_text.text(), "上次读取")
-        self.controller.receive([Reading("keyboard", "键盘", "", 50, present=True),
-                                 Reading("headset", "耳机", "", 75, present=True)], "")
         self.assertFalse(self.controller.stale)
 
     def test_event_loop_keeps_ticking_while_worker_waits(self):
@@ -265,8 +249,9 @@ class UiTests(unittest.TestCase):
         self.assertEqual(self.panel.cards["mouse"].state_text.text(), "上次读取")
 
     def test_sleep_is_not_zero_battery(self):
-        card = self.panel.cards["keyboard"]
-        card.render(Reading("keyboard", "夜魔", "AZOTH", error="设备未回复，请唤醒设备"), self.controller.config)
+        card = self.panel.cards["mouse"]
+        card.render(Reading("mouse", "奥丁 Model O-", "MODEL", error="鼠标休眠或未连接，请动一下鼠标后刷新"),
+                    self.controller.config)
         self.assertEqual(card.percentage.text(), "—")
         self.assertEqual(card.state_text.text(), "等待唤醒")
 

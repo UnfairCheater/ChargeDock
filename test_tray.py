@@ -132,9 +132,7 @@ class BadgeTests(unittest.TestCase):
         self.folder.cleanup()
 
     def feed(self, level=64, charging=False):
-        self.controller.receive([Reading("mouse", "奥丁 Model O-", "", level, charging, present=True),
-                                 Reading("keyboard", "夜魔", "", None),
-                                 Reading("headset", "赛睿耳机", "", None)], "")
+        self.controller.receive([Reading("mouse", "奥丁 Model O-", "", level, charging, present=True)], "")
         self.app.processEvents()
 
     def test_badge_shows_percentage_and_follows_settings(self):
@@ -181,9 +179,7 @@ class BadgeTests(unittest.TestCase):
 
     def test_nothing_connected_hides_every_card_and_the_badge(self):
         self.controller.receive([
-            Reading("mouse", "奥丁 Model O-", "", error="未找到奥丁接收器或 USB 连接"),
-            Reading("keyboard", "夜魔", "", error="未找到对应的接收器或 USB 连接"),
-            Reading("headset", "赛睿耳机", "", error="未找到耳机基站")], "")
+            Reading("mouse", "奥丁 Model O-", "", error="未找到奥丁接收器或 USB 连接")], "")
         self.app.processEvents()
         panel = self.controller.panel
         self.assertFalse(self.badge.isVisible())
